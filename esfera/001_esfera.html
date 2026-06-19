@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laboratório: A Formação da Esfera - MATMOV</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0b192c; }
+        #canvas-container { width: 100vw; height: 100vh; display: block; }
+
+        /* Painel Superior - Tema Estádio */
+        #top-panel {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(11, 25, 44, 0.85); padding: 15px 40px; border-radius: 30px;
+            border: 2px solid #00ff88; z-index: 20; box-shadow: 0 0 20px rgba(0, 255, 136, 0.4);
+            text-align: center; font-weight: bold; color: #ffffff; font-size: 1.3rem; text-transform: uppercase; letter-spacing: 2px;
+        }
+        #top-panel span { color: #00ff88; }
+
+        /* Painel Lateral de Informações */
+        #info-panel {
+            position: absolute; top: 100px; left: 20px; width: 340px;
+            background: rgba(11, 25, 44, 0.9); padding: 25px; border-radius: 12px;
+            border: 1px solid #00ff88; z-index: 10; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            display: flex; flex-direction: column; gap: 15px; color: #e2e8f0;
+        }
+        #info-panel h2 { margin: 0; color: #00ff88; font-size: 1.4rem; border-bottom: 1px solid rgba(0,255,136,0.3); padding-bottom: 10px; }
+        #info-text { font-size: 1.05rem; line-height: 1.5; }
+        
+        .math-box {
+            background: rgba(255,255,255,0.05); border: 1px dashed #00bfff; padding: 15px;
+            border-radius: 8px; color: #00bfff; font-weight: bold; font-size: 1.1rem; text-align: center;
+        }
+
+        /* Slider de Revolução */
+        .slider-container { display: none; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; border: 1px solid #334155; }
+        .slider-container.active { display: block; }
+        .slider-container label { color: #00ff88; font-weight: bold; display: block; margin-bottom: 8px; text-transform: uppercase; font-size: 0.9rem;}
+        input[type=range] { width: 100%; accent-color: #00ff88; cursor: pointer; }
+
+        /* Painel de Navegação (Passo a Passo) */
+        #nav-panel {
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+            background: rgba(11, 25, 44, 0.9); padding: 15px 25px; border-radius: 15px;
+            border: 1px solid #00ff88; z-index: 10; box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap; max-width: 900px;
+        }
+
+        button.step-btn {
+            background: transparent; border: 2px solid #334155; padding: 12px 18px; font-size: 0.95rem;
+            border-radius: 8px; cursor: pointer; font-weight: bold; color: #cbd5e1; transition: all 0.3s; text-transform: uppercase;
+        }
+        button.step-btn:hover { background: rgba(255,255,255,0.1); transform: translateY(-2px); }
+        button.step-btn.active { background: #00ff88; color: #0b192c; border-color: #00ff88; box-shadow: 0 0 15px rgba(0,255,136,0.5); }
+
+        /* Labels Dinâmicos do 3D */
+        .v-label {
+            position: absolute; font-weight: 900; font-size: 1.4rem; color: #ffffff;
+            text-shadow: 0 0 5px #000, 0 0 10px #000; pointer-events: none; z-index: 5; transform: translate(-50%, -50%);
+        }
+        .highlight-label { color: #00ff88; font-size: 1.6rem; text-shadow: 0 0 10px #00ff88, 0 0 20px #00ff88; }
+        .highlight-label-alt { color: #00bfff; font-size: 1.6rem; text-shadow: 0 0 10px #00bfff, 0 0 20px #00bfff; }
+
+        .instrucao {
+            position: absolute; top: 20px; right: 20px; background: rgba(11,25,44,0.8);
+            padding: 10px 15px; border-radius: 8px; font-size: 0.9rem; color: #00ff88;
+            border: 1px solid #00ff88; pointer-events: none; z-index: 10; box-shadow: 0 0 10px rgba(0,255,136,0.2);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="top-panel">
+        ⚽ Geometria da Bola: <span>O que é a Esfera?</span>
+    </div>
+
+    <div id="info-panel">
+        <h2 id="step-title">1. O Centro do Jogo</h2>
+        <div id="info-text">Tudo começa com um único ponto fixo no espaço, chamado de <b>Centro (O)</b>. Ele é a âncora da nossa figura.</div>
+        <div class="math-box" id="math-box">Ponto de Origem: O</div>
+        
+        <div class="slider-container" id="slider-box">
+            <label for="rev-slider">Ângulo de Giro: <span id="angle-value">0°</span></label>
+            <input type="range" id="rev-slider" min="0" max="360" value="0">
+        </div>
+    </div>
+
+    <div class="instrucao">🖱️ Gire o campo em 3D para ver todos os ângulos</div>
+
+    <div id="labels-container"></div>
+    <div id="canvas-container"></div>
+
+    <div id="nav-panel">
+        <button class="step-btn active" onclick="setStep(1)" id="btn-1">1. Centro</button>
+        <button class="step-btn" onclick="setStep(2)" id="btn-2">2. O Raio</button>
+        <button class="step-btn" onclick="setStep(3)" id="btn-3">3. Equidistância</button>
+        <button class="step-btn" onclick="setStep(4)" id="btn-4">4. Revolução</button>
+        <button class="step-btn" onclick="setStep(5)" id="btn-5">5. A Esfera</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script>
+        // --- CONFIGURAÇÃO DA CENA ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x06101e);
+        scene.fog = new THREE.FogExp2(0x06101e, 0.015);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(20, 15, 25);
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+        
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.target.set(0, 5, 0);
+
+        // ILUMINAÇÃO
+        scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+        const spotLight = new THREE.SpotLight(0xffffff, 1.5);
+        spotLight.position.set(0, 40, 0);
+        spotLight.angle = Math.PI / 4;
+        scene.add(spotLight);
+
+        // GRAMADO VIRTUAL
+        scene.add(new THREE.GridHelper(50, 50, 0x00ff88, 0x003311));
+
+        // --- VARIÁVEIS E GRUPOS ---
+        const R = 6; 
+        const centerPos = new THREE.Vector3(0, 6, 0);
+        
+        const groupCenter = new THREE.Group();
+        const groupRadius = new THREE.Group();
+        const groupEquidistance = new THREE.Group();
+        const groupRevolution = new THREE.Group();
+        const groupSphere = new THREE.Group(); // Novo grupo para Passo 5
+        scene.add(groupCenter, groupRadius, groupEquidistance, groupRevolution, groupSphere);
+
+        // SISTEMA DE LABELS
+        const labelsContainer = document.getElementById('labels-container');
+        const activeLabels = [];
+
+        function registerLabel(text, offset, className = 'v-label') {
+            const div = document.createElement('div');
+            div.className = className;
+            div.innerHTML = text;
+            labelsContainer.appendChild(div);
+            const labelObj = { element: div, offset: offset, visible: false };
+            activeLabels.push(labelObj);
+            return labelObj;
+        }
+
+        const labelO = registerLabel("O", centerPos.clone().add(new THREE.Vector3(0, -0.8, 0)));
+        const labelR = registerLabel("R", centerPos.clone().add(new THREE.Vector3(R/2, 0.5, 0)), "v-label highlight-label");
+
+        // Labels para Passo 5
+        const pEq = new THREE.Vector3(R, 6, 0); // Equador
+        const angleUp = Math.PI / 3; // 60 graus para cima
+        const pUp = new THREE.Vector3(R * Math.cos(angleUp), 6 + R * Math.sin(angleUp), 0);
+        
+        const labelR_eq = registerLabel("R", centerPos.clone().lerp(pEq, 0.5).add(new THREE.Vector3(0, 0.5, 0)), "v-label highlight-label");
+        const labelR_up = registerLabel("R", centerPos.clone().lerp(pUp, 0.5).add(new THREE.Vector3(-0.5, 0.5, 0)), "v-label highlight-label-alt");
+
+        // --- CONSTRUÇÃO DOS ELEMENTOS ---
+
+        // 1. Centro (O)
+        const centerDot = new THREE.Mesh(new THREE.SphereGeometry(0.3, 32, 32), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+        centerDot.position.copy(centerPos);
+        groupCenter.add(centerDot);
+
+        // 2. Raio Único
+        const radiusLineGeo = new THREE.BufferGeometry().setFromPoints([centerPos, pEq]);
+        groupRadius.add(new THREE.Line(radiusLineGeo, new THREE.LineBasicMaterial({ color: 0x00ff88, linewidth: 3 })));
+        const ptEdge = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 16), new THREE.MeshBasicMaterial({ color: 0x00ff88 }));
+        ptEdge.position.copy(pEq);
+        groupRadius.add(ptEdge);
+
+        // 3. Equidistância
+        const pointCloudMat = new THREE.MeshBasicMaterial({ color: 0x00bfff });
+        const faintLineMat = new THREE.LineBasicMaterial({ color: 0x00bfff, transparent: true, opacity: 0.2 });
+        for(let i = 0; i < 150; i++) {
+            const phi = Math.acos(-1 + (2 * i) / 150);
+            const theta = Math.sqrt(150 * Math.PI) * phi;
+            const x = R * Math.cos(theta) * Math.sin(phi);
+            const y = R * Math.sin(theta) * Math.sin(phi);
+            const z = R * Math.cos(phi);
+            const surfacePt = new THREE.Vector3(x, y + 6, z);
+
+            const pt = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), pointCloudMat);
+            pt.position.copy(surfacePt);
+            groupEquidistance.add(pt);
+            groupEquidistance.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([centerPos, surfacePt]), faintLineMat));
+        }
+        const sphereWireframe = new THREE.Mesh(new THREE.SphereGeometry(R, 24, 24), new THREE.MeshBasicMaterial({ color: 0x00bfff, wireframe: true, transparent: true, opacity: 0.15 }));
+        sphereWireframe.position.copy(centerPos);
+        groupEquidistance.add(sphereWireframe);
+
+        // 4. Revolução Controlada pelo Slider
+        const semiCirclePoints = [];
+        for (let i = 0; i <= 30; i++) {
+            const angle = (i / 30) * Math.PI; 
+            semiCirclePoints.push(new THREE.Vector2(Math.sin(angle) * R, Math.cos(angle) * R));
+        }
+        
+        const arcGeo = new THREE.BufferGeometry().setFromPoints(semiCirclePoints.map(p => new THREE.Vector3(p.x, p.y + 6, 0)));
+        const arcLine = new THREE.Line(arcGeo, new THREE.LineBasicMaterial({ color: 0xff0055, linewidth: 3 }));
+        groupRevolution.add(arcLine);
+
+        // Eixo de rotação (Linha vertical)
+        const axisGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 6+R+1, 0), new THREE.Vector3(0, 6-R-1, 0)]);
+        groupRevolution.add(new THREE.Line(axisGeo, new THREE.LineDashedMaterial({ color: 0xffffff, dashSize: 0.5, gapSize: 0.2 })));
+
+        let latheMesh;
+        const latheMat = new THREE.MeshPhongMaterial({ color: 0x00ff88, transparent: true, opacity: 0.4, side: THREE.DoubleSide });
+        
+        const slider = document.getElementById('rev-slider');
+        const angleValueTxt = document.getElementById('angle-value');
+        
+        slider.addEventListener('input', (e) => {
+            const degrees = e.target.value;
+            angleValueTxt.innerText = `${degrees}°`;
+            const revolveAngle = (degrees * Math.PI) / 180;
+            
+            arcLine.rotation.y = revolveAngle;
+
+            if(latheMesh) groupRevolution.remove(latheMesh);
+            if(revolveAngle > 0) {
+                const lGeo = new THREE.LatheGeometry(semiCirclePoints, 32, 0, revolveAngle);
+                latheMesh = new THREE.Mesh(lGeo, latheMat);
+                latheMesh.position.y = 6;
+                groupRevolution.add(latheMesh);
+            }
+        });
+
+        // 5. Esfera Completa
+        const fullSphereMesh = new THREE.Mesh(new THREE.SphereGeometry(R, 32, 32), new THREE.MeshPhongMaterial({ color: 0x00ff88, transparent: true, opacity: 0.25 }));
+        fullSphereMesh.position.copy(centerPos);
+        const fullSphereWire = new THREE.Mesh(new THREE.SphereGeometry(R, 16, 16), new THREE.MeshBasicMaterial({ color: 0x00ff88, wireframe: true, transparent: true, opacity: 0.1 }));
+        fullSphereWire.position.copy(centerPos);
+        groupSphere.add(fullSphereMesh, fullSphereWire);
+
+        // Raios da Esfera
+        groupSphere.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([centerPos, pEq]), new THREE.LineBasicMaterial({ color: 0x00ff88, linewidth: 3 })));
+        groupSphere.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([centerPos, pUp]), new THREE.LineBasicMaterial({ color: 0x00bfff, linewidth: 3 })));
+        
+        const dotMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const d1 = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 16), dotMat); d1.position.copy(pEq);
+        const d2 = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 16), dotMat); d2.position.copy(pUp);
+        groupSphere.add(d1, d2);
+
+        // --- CONTROLE DOS PASSOS ---
+        function setStep(step) {
+            document.querySelectorAll('.step-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('btn-' + step).classList.add('active');
+
+            const title = document.getElementById('step-title');
+            const text = document.getElementById('info-text');
+            const math = document.getElementById('math-box');
+            const sliderBox = document.getElementById('slider-box');
+
+            // Reset visibilidade de grupos
+            groupCenter.visible = false; 
+            groupRadius.visible = false;
+            groupEquidistance.visible = false;
+            groupRevolution.visible = false;
+            groupSphere.visible = false;
+            sliderBox.classList.remove('active');
+
+            // Reset labels
+            labelO.visible = false;
+            labelR.visible = false;
+            labelR_eq.visible = false;
+            labelR_up.visible = false;
+
+            if (step === 1) {
+                title.innerText = "1. O Centro do Jogo";
+                text.innerHTML = "Tudo começa com um único ponto fixo no espaço, chamado de <b>Centro (O)</b>. Ele é a âncora da nossa figura.";
+                math.innerHTML = "Ponto Fixo: Centro (O)";
+                groupCenter.visible = true;
+                labelO.visible = true;
+            } 
+            else if (step === 2) {
+                title.innerText = "2. O Raio";
+                text.innerHTML = "O <b>Raio (R)</b> é a distância exata entre o centro e a superfície da bola. Qualquer coisa além disso está 'fora de campo'.";
+                math.innerHTML = "Distância = Raio (R)";
+                groupCenter.visible = true;
+                groupRadius.visible = true;
+                labelO.visible = true;
+                labelR.visible = true;
+            }
+            else if (step === 3) {
+                title.innerText = "3. A Equidistância";
+                text.innerHTML = "A esfera não é oca ou cheia, ela é apenas a <b>'casca'</b>. É o conjunto de todos os pontos do espaço que estão à mesma distância R do centro.";
+                math.innerHTML = "P(x,y,z) | Distância(P, O) = R";
+                groupCenter.visible = true;
+                groupEquidistance.visible = true;
+                labelO.visible = true;
+            }
+            else if (step === 4) {
+                title.innerText = "4. Sólido de Revolução";
+                text.innerHTML = "Arraste o controle abaixo para girar um <b>semicírculo</b>. O rastro deixado por ele ao completar 360° no espaço forma a esfera perfeita.";
+                math.innerHTML = "Giro no Eixo Central";
+                sliderBox.classList.add('active');
+                groupRevolution.visible = true;
+            }
+            else if (step === 5) {
+                title.innerText = "5. A Esfera Perfeita";
+                text.innerHTML = "Dentro da esfera formada, não importa a direção em que você chute o raio — para o equador ou para perto do polo —, a distância do centro até a casca <b>será sempre R</b>.";
+                math.innerHTML = "Distâncias Iguais: R";
+                groupCenter.visible = true;
+                groupSphere.visible = true;
+                labelO.visible = true;
+                labelR_eq.visible = true;
+                labelR_up.visible = true;
+            }
+        }
+
+        // --- RENDER LOOP ---
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+
+            // Atualização dos Labels HTML
+            activeLabels.forEach(label => {
+                if (label.visible) {
+                    const pos = new THREE.Vector3().copy(label.offset);
+                    pos.project(camera);
+                    label.element.style.left = `${(pos.x * 0.5 + 0.5) * window.innerWidth}px`;
+                    label.element.style.top = `${-(pos.y * 0.5 - 0.5) * window.innerHeight}px`;
+                    label.element.style.display = pos.z > 1 ? 'none' : 'block';
+                } else {
+                    label.element.style.display = 'none';
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Inicializa
+        setStep(1);
+        animate();
+    </script>
+
+<!-- MATMOV Navigation -->
+<style>
+  #matmov-nav {
+    position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+    display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
+  }
+  #matmov-nav-menu {
+    display: none; flex-direction: column; gap: 6px;
+    background: rgba(11, 25, 44, 0.97); border: 1px solid rgba(0,255,136,0.35);
+    border-radius: 14px; padding: 14px 16px; min-width: 260px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+  }
+  #matmov-nav-menu.open { display: flex; }
+  #matmov-nav-menu a {
+    color: #94a3b8; text-decoration: none; font-family: 'Segoe UI', sans-serif;
+    font-size: 0.82rem; letter-spacing: 0.5px; padding: 6px 10px; border-radius: 8px;
+    transition: background 0.15s, color 0.15s;
+  }
+  #matmov-nav-menu a:hover { background: rgba(0,255,136,0.1); color: #00ff88; }
+  #matmov-nav-menu a.matmov-current { color: #00ff88; font-weight: 700; background: rgba(0,255,136,0.08); }
+  #matmov-nav-menu .matmov-home {
+    color: #00bfff; border-bottom: 1px solid rgba(255,255,255,0.08);
+    margin-bottom: 4px; padding-bottom: 10px;
+  }
+  #matmov-nav-menu .matmov-home:hover { background: rgba(0,191,255,0.1); color: #00bfff; }
+  #matmov-nav-toggle {
+    background: rgba(11, 25, 44, 0.95); border: 1px solid rgba(0,255,136,0.5);
+    color: #00ff88; font-size: 1rem; font-family: 'Segoe UI', sans-serif;
+    padding: 9px 16px; border-radius: 30px; cursor: pointer; letter-spacing: 1px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5); transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  #matmov-nav-toggle:hover { border-color: #00ff88; box-shadow: 0 0 12px rgba(0,255,136,0.3); }
+</style>
+<div id="matmov-nav">
+  <div id="matmov-nav-menu">
+    <a class="matmov-home" href="../index.html">&#8962; Início — MATMOV</a>
+    <a href="001_esfera.html">Lab 01 &mdash; A Formação da Esfera</a>
+    <a href="002_area_volume.html">Lab 02 &mdash; Área e Volume da Esfera</a>
+    <a href="003_elementos_esfera_seccao.html">Lab 03 &mdash; Elementos da Esfera</a>
+    <a href="004_fuso_cunha.html">Lab 04 &mdash; Cunha e Fuso Esférico</a>
+    <a href="005_inscricao.html">Lab 05 &mdash; Inscrição e Circunscrição</a>
+    <a href="006_planeta_esfera.html">Lab 06 &mdash; A Terra e os Fusos</a>
+    <a href="007_projecao_planeta.html">Lab 07 &mdash; Projeção de Mercator</a>
+  </div>
+  <button id="matmov-nav-toggle" onclick="(function(){var m=document.getElementById('matmov-nav-menu');m.classList.toggle('open');})()">&#9776; Labs</button>
+</div>
+<script>
+  (function() {
+    var cur = window.location.pathname.split('/').pop().split('?')[0];
+    var links = document.querySelectorAll('#matmov-nav-menu a[href]');
+    links.forEach(function(a) {
+      var href = a.getAttribute('href').split('?')[0];
+      if (href === cur || decodeURIComponent(href) === decodeURIComponent(cur)) {
+        a.classList.add('matmov-current');
+      }
+    });
+  })();
+</script>
+
+</body>
+</html>

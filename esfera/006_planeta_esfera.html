@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laboratório 3D: A Terra e os Fusos - MATMOV</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #050d1a; }
+        #canvas-container { width: 100vw; height: 100vh; display: block; }
+
+        /* Painel Superior */
+        #top-panel {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(5, 13, 26, 0.85); padding: 15px 40px; border-radius: 30px;
+            border: 2px solid #00aaff; z-index: 20; box-shadow: 0 0 20px rgba(0, 170, 255, 0.4);
+            text-align: center; font-weight: bold; color: #ffffff; font-size: 1.3rem; text-transform: uppercase; letter-spacing: 2px;
+        }
+        #top-panel span { color: #00aaff; }
+
+        /* Painel Lateral de Informações */
+        #info-panel {
+            position: absolute; top: 100px; left: 20px; width: 360px;
+            background: rgba(5, 13, 26, 0.9); padding: 25px; border-radius: 12px;
+            border: 1px solid #00aaff; z-index: 10; box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+            display: flex; flex-direction: column; gap: 15px; color: #e2e8f0;
+        }
+        #info-panel h2 { margin: 0; color: #00aaff; font-size: 1.4rem; border-bottom: 1px solid rgba(0,170,255,0.3); padding-bottom: 10px; }
+        #info-text { font-size: 1.05rem; line-height: 1.5; }
+        
+        .math-box {
+            background: rgba(255,255,255,0.05); border: 1px dashed #00ff88; padding: 15px;
+            border-radius: 8px; color: #00ff88; font-weight: bold; font-size: 1rem; text-align: center; line-height: 1.6;
+        }
+
+        /* Slider */
+        .slider-container { display: none; background: rgba(0,0,0,0.4); padding: 15px; border-radius: 8px; border: 1px solid #334155; }
+        .slider-container.active { display: block; }
+        .slider-container label { color: #ffaa00; font-weight: bold; display: block; margin-bottom: 8px; font-size: 0.95rem;}
+        input[type=range] { width: 100%; accent-color: #ffaa00; cursor: pointer; }
+
+        /* Painel de Navegação */
+        #nav-panel {
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+            background: rgba(5, 13, 26, 0.9); padding: 15px 25px; border-radius: 15px;
+            border: 1px solid #00aaff; z-index: 10; box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+            display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap; max-width: 1000px;
+        }
+
+        button.step-btn {
+            background: transparent; border: 2px solid #334155; padding: 12px 18px; font-size: 0.95rem;
+            border-radius: 8px; cursor: pointer; font-weight: bold; color: #cbd5e1; transition: all 0.3s; text-transform: uppercase;
+        }
+        button.step-btn:hover { background: rgba(255,255,255,0.1); transform: translateY(-2px); }
+        button.step-btn.active { background: #00aaff; color: #050d1a; border-color: #00aaff; box-shadow: 0 0 15px rgba(0,170,255,0.5); }
+
+        /* Labels Dinâmicos do 3D */
+        .v-label {
+            position: absolute; font-weight: 900; font-size: 1.1rem; color: #ffffff;
+            text-shadow: 0 0 5px #000, 0 0 10px #000; pointer-events: none; z-index: 5; transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.5); padding: 2px 8px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.2);
+        }
+        .lbl-highlight { color: #ffaa00; border-color: #ffaa00; font-size: 1.3rem; }
+        .lbl-green { color: #00ff88; border-color: #00ff88; font-size: 1.1rem; }
+
+        .instrucao {
+            position: absolute; top: 20px; right: 20px; background: rgba(5,13,26,0.8);
+            padding: 10px 15px; border-radius: 8px; font-size: 0.9rem; color: #00aaff;
+            border: 1px solid #00aaff; pointer-events: none; z-index: 10; box-shadow: 0 0 10px rgba(0,170,255,0.2);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="top-panel">
+        🌍 O Planeta Matemático: <span>Coordenadas e Fusos</span>
+    </div>
+
+    <div id="info-panel">
+        <h2 id="step-title">1. A Terra como Esfera</h2>
+        <div id="info-text">Na geometria cartográfica, modelamos o planeta Terra como uma grande esfera. As linhas que você vê formam a nossa grade de localização.</div>
+        <div class="math-box" id="math-box">Raio da Terra (R) ≈ 6.371 km</div>
+        
+        <div class="slider-container" id="slider-box">
+            <label for="utc-slider">Deslocamento (UTC): <span id="utc-value">0 h</span></label>
+            <input type="range" id="utc-slider" min="-12" max="12" step="1" value="0">
+        </div>
+    </div>
+
+    <div class="instrucao">🖱️ Clique e arraste para girar a Terra</div>
+    
+    <div id="labels-container"></div>
+    <div id="canvas-container"></div>
+
+    <div id="nav-panel">
+        <button class="step-btn active" onclick="setStep(1)" id="btn-1">1. O Globo</button>
+        <button class="step-btn" onclick="setStep(2)" id="btn-2">2. Equador (Hem. N/S)</button>
+        <button class="step-btn" onclick="setStep(3)" id="btn-3">3. Greenwich (Hem. L/O)</button>
+        <button class="step-btn" onclick="setStep(4)" id="btn-4">4. A Matemática dos Fusos</button>
+        <button class="step-btn" onclick="setStep(5)" id="btn-5">5. Lab: Fusos Horários</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script>
+        // --- CONFIGURAÇÃO DA CENA ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x020611); 
+        scene.fog = new THREE.FogExp2(0x020611, 0.012);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(30, 20, 40);
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+        
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        // ILUMINAÇÃO
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(30, 20, 20);
+        scene.add(dirLight);
+
+        // --- VARIÁVEIS GLOBAIS ---
+        const R = 15; 
+        
+        // GRUPOS
+        const groupGlobo = new THREE.Group(); 
+        const groupEquador = new THREE.Group(); 
+        const groupMeridiano = new THREE.Group(); 
+        const groupTodosFusos = new THREE.Group();
+        const groupLabFuso = new THREE.Group(); 
+        
+        scene.add(groupGlobo, groupEquador, groupMeridiano, groupTodosFusos, groupLabFuso);
+
+        // --- SISTEMA DE LABELS ---
+        const labelsContainer = document.getElementById('labels-container');
+        const activeLabels = [];
+        function registerLabel(text, offset, className = 'v-label') {
+            const div = document.createElement('div');
+            div.className = className;
+            div.innerHTML = text;
+            labelsContainer.appendChild(div);
+            const labelObj = { element: div, offset: offset, visible: false };
+            activeLabels.push(labelObj);
+            return labelObj;
+        }
+
+        const lbl_N = registerLabel("Polo Norte", new THREE.Vector3(0, R + 1.5, 0));
+        const lbl_S = registerLabel("Polo Sul", new THREE.Vector3(0, -R - 1.5, 0));
+        const lbl_Eq = registerLabel("Equador (Círculo Máximo)", new THREE.Vector3(R + 2, 0, 0), "v-label lbl-highlight");
+        const lbl_Gr = registerLabel("Greenwich", new THREE.Vector3(0, 0, R + 2), "v-label lbl-highlight");
+        const lbl_Fuso = registerLabel("Fuso de 15°", new THREE.Vector3(Math.cos(Math.PI/24)*R*1.1, 0, Math.sin(Math.PI/24)*R*1.1), "v-label lbl-highlight");
+        const lbl_Gr_Lab = registerLabel("UTC 0", new THREE.Vector3(0, -R - 2, 0), "v-label lbl-green");
+
+        // --- MATERIAIS ---
+        const matTerraBase = new THREE.MeshLambertMaterial({ color: 0x0044aa, transparent: true, opacity: 0.7, roughness: 0.2, transmission: 0.9, side: THREE.DoubleSide });
+        const matTerraGrid = new THREE.MeshBasicMaterial({ color: 0x00aaff, wireframe: true, transparent: true, opacity: 0.3 });
+        
+        const matHemisNorte = new THREE.MeshLambertMaterial({ color: 0xff4400, transparent: true, opacity: 0.7, side: THREE.DoubleSide });
+        const matHemisSul = new THREE.MeshLambertMaterial({ color: 0x00ff88, transparent: true, opacity: 0.7, side: THREE.DoubleSide });
+        
+        const matHemisLeste = new THREE.MeshLambertMaterial({ color: 0xaa00ff, transparent: true, opacity: 0.7, side: THREE.DoubleSide });
+        const matHemisOeste = new THREE.MeshLambertMaterial({ color: 0xffd700, transparent: true, opacity: 0.7, side: THREE.DoubleSide });
+
+        const matFusoSolido = new THREE.MeshLambertMaterial({ color: 0xffaa00, transparent: true, opacity: 0.8, side: THREE.DoubleSide });
+        const matFusoLinha = new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 3 });
+
+        // --- CONSTRUÇÃO DOS ELEMENTOS ---
+
+        // 1. O GLOBO (Alta resolução)
+        const geoGloboBase = new THREE.SphereGeometry(R, 128, 64); 
+        const geoGloboGrid = new THREE.SphereGeometry(R, 24, 18);  
+        
+        const globoBase = new THREE.Mesh(geoGloboBase, matTerraBase);
+        const globoGrid = new THREE.Mesh(geoGloboGrid, matTerraGrid);
+        
+        const eixoTerra = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, -R-4, 0), new THREE.Vector3(0, R+4, 0)]), new THREE.LineDashedMaterial({color: 0xffffff, dashSize: 0.5, gapSize: 0.5}));
+        eixoTerra.computeLineDistances();
+        
+        groupGlobo.add(globoBase, globoGrid, eixoTerra);
+
+        // 2. EQUADOR E HEMISFÉRIOS (N/S)
+        const geoEquador = new THREE.TorusGeometry(R*1.012, 0.4, 16, 128);
+        const anelEquador = new THREE.Mesh(geoEquador, new THREE.MeshBasicMaterial({ color: 0xff4400 }));
+        anelEquador.rotation.x = Math.PI / 2;
+        
+        const hemisN = new THREE.Mesh(new THREE.SphereGeometry(R*1.01, 128, 64, 0, Math.PI*2, 0, Math.PI/2), matHemisNorte);
+        const hemisS = new THREE.Mesh(new THREE.SphereGeometry(R*1.01, 128, 64, 0, Math.PI*2, Math.PI/2, Math.PI/2), matHemisSul);
+        
+        groupEquador.add(anelEquador, hemisN, hemisS);
+
+        // 3. GREENWICH E HEMISFÉRIOS (L/O)
+        const geoGreenwich = new THREE.TorusGeometry(R*1.012, 0.4, 16, 128);
+        const anelGreenwich = new THREE.Mesh(geoGreenwich, new THREE.MeshBasicMaterial({ color: 0x00ff88 }));
+        anelGreenwich.rotation.y = Math.PI / 2; 
+
+        const hemisOeste = new THREE.Mesh(new THREE.SphereGeometry(R*1.01, 64, 64, -Math.PI/2, Math.PI), matHemisOeste);
+        const hemisLeste = new THREE.Mesh(new THREE.SphereGeometry(R*1.01, 64, 64, Math.PI/2, Math.PI), matHemisLeste);
+        
+        groupMeridiano.add(anelGreenwich, hemisOeste, hemisLeste);
+
+        // 4. A MATEMÁTICA DOS FUSOS
+        for(let i=0; i<24; i++) {
+            const ang = (i * 15) * (Math.PI / 180);
+            const pts = new THREE.Path().absarc(0, 0, R*1.01, 0, Math.PI * 2).getPoints(128);
+            const anelFuso = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0.3 }));
+            anelFuso.rotation.y = Math.PI / 2 + ang; 
+            groupTodosFusos.add(anelFuso);
+        }
+
+        // 5. LAB: O FUSO HORÁRIO INDIVIDUAL
+        const rad15 = Math.PI / 12;
+        const offsetFuso = -rad15 / 2;
+        
+        const geoFusoLab = new THREE.SphereGeometry(R*1.02, 32, 64, offsetFuso, rad15);
+        const fusoLabMesh = new THREE.Mesh(geoFusoLab, matFusoSolido);
+        
+        const linhasFusoGeo = new THREE.BufferGeometry();
+        const vertsFuso = [];
+        for(let i=0; i<=64; i++){
+            const t = (i/64)*Math.PI;
+            vertsFuso.push(-Math.cos(offsetFuso)*Math.sin(t)*R*1.03, Math.cos(t)*R*1.03, Math.sin(offsetFuso)*Math.sin(t)*R*1.03);
+        }
+        for(let i=64; i>=0; i--){
+            const t = (i/64)*Math.PI;
+            vertsFuso.push(-Math.cos(offsetFuso+rad15)*Math.sin(t)*R*1.03, Math.cos(t)*R*1.03, Math.sin(offsetFuso+rad15)*Math.sin(t)*R*1.03);
+        }
+        linhasFusoGeo.setAttribute('position', new THREE.Float32BufferAttribute(vertsFuso, 3));
+        const contornoFusoLab = new THREE.LineLoop(linhasFusoGeo, matFusoLinha);
+
+        groupLabFuso.add(fusoLabMesh, contornoFusoLab);
+
+        // --- LINHA DE REFERÊNCIA FIXA PARA O LAB (GREENWICH) ---
+        const linhaGreenwichRef = new THREE.Mesh(new THREE.TorusGeometry(R*1.015, 0.15, 16, 128), new THREE.MeshBasicMaterial({ color: 0x00ff88 }));
+        linhaGreenwichRef.rotation.y = 0;
+        scene.add(linhaGreenwichRef);
+
+        // --- SISTEMA INTERATIVO (SLIDER DO LAB) ---
+        const slider = document.getElementById('utc-slider');
+        const utcValueTxt = document.getElementById('utc-value');
+        
+        slider.addEventListener('input', (e) => {
+            const horasOffset = parseInt(e.target.value);
+            const sinal = horasOffset >= 0 ? "+" : "";
+            utcValueTxt.innerText = `${sinal}${horasOffset} h`;
+            
+            const anguloRotacao = horasOffset * rad15; 
+            groupLabFuso.rotation.y = anguloRotacao;
+
+            const grausFuso = horasOffset * 15;
+            
+            document.getElementById('math-box').innerHTML = `
+                Diferença de tempo: <b>${horasOffset} horas</b><br>
+                <hr style="border: 0; border-top: 1px dashed rgba(0, 255, 136, 0.3); margin: 10px 0;">
+                <span style="color:#00bfff;">Deslocamento Geométrico:</span><br>
+                ${Math.abs(horasOffset)}h × 15° = <b>${Math.abs(grausFuso)}°</b> ${horasOffset >= 0 ? "para Leste (Adiantado)" : "para Oeste (Atrasado)"}
+            `;
+
+            const angFinal = anguloRotacao;
+            lbl_Fuso.offset.set(Math.sin(angFinal)*R*1.1, 0, Math.cos(angFinal)*R*1.1);
+        });
+
+        // --- CONTROLE DOS PASSOS ---
+        function setStep(step) {
+            document.querySelectorAll('.step-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('btn-' + step).classList.add('active');
+
+            const title = document.getElementById('step-title');
+            const text = document.getElementById('info-text');
+            const math = document.getElementById('math-box');
+            const sliderBox = document.getElementById('slider-box');
+
+            groupEquador.visible = false;
+            groupMeridiano.visible = false;
+            groupTodosFusos.visible = false;
+            groupLabFuso.visible = false;
+            linhaGreenwichRef.visible = false; // Esconde a linha fixa
+            sliderBox.classList.remove('active');
+
+            activeLabels.forEach(l => l.visible = false);
+            lbl_N.visible = true;
+            lbl_S.visible = true;
+
+            if (step === 1) {
+                title.innerText = "1. A Terra como Esfera";
+                text.innerHTML = "Na geometria cartográfica, modelamos o planeta Terra como uma grande esfera. As linhas verticais e horizontais que você vê formam a nossa grade de coordenadas matemáticas.";
+                math.innerHTML = `Raio da Terra (R) ≈ 6.371 km<br>Área ≈ 4πR²`;
+            } 
+            else if (step === 2) {
+                title.innerText = "2. Equador e Hemisférios";
+                text.innerHTML = "O <b>Equador</b> é um <i>Círculo Máximo</i> horizontal. Ele corta a esfera exatamente ao meio, separando o globo em dois Hemisférios: <b>Norte</b> (acima) e <b>Sul</b> (abaixo).";
+                math.innerHTML = `Equador = Círculo Máximo<br>Secção Plana passando pelo Centro.`;
+                
+                groupEquador.visible = true;
+                lbl_Eq.visible = true;
+            }
+            else if (step === 3) {
+                title.innerText = "3. Greenwich e Meridianos";
+                text.innerHTML = "O <b>Meridiano de Greenwich</b> (junto com seu antimeridiano) forma um <i>Círculo Máximo</i> vertical. Ele divide a Terra em Hemisfério <b>Oeste</b> (Ocidental) e <b>Leste</b> (Oriental).";
+                math.innerHTML = `Meridianos formam arcos de 180°.<br>Dois opostos formam um Círculo Máximo.`;
+                
+                groupMeridiano.visible = true;
+                lbl_Gr.visible = true;
+            }
+            else if (step === 4) {
+                title.innerText = "4. A Matemática dos Fusos";
+                text.innerHTML = "A Terra completa um giro de 360° sobre seu próprio eixo em aproximadamente 24 horas. Para organizar o tempo, dividimos o globo em 24 fatias iguais.";
+                math.innerHTML = `Regra de Três da Rotação:<br><b>360° / 24 horas = 15° por hora</b><br>Cada fatia mede 15°.`;
+                
+                groupTodosFusos.visible = true;
+            }
+            else if (step === 5) {
+                title.innerText = "5. Lab: Fusos Horários";
+                text.innerHTML = "Cada Fuso Horário é um <b>Fuso Esférico</b> com ângulo diedro α = 15°. A linha verde fixa marca Greenwich. Use o controle para viajar pelos fusos.";
+                
+                groupLabFuso.visible = true;
+                linhaGreenwichRef.visible = true; // Ativa a linha verde fixa
+                lbl_Gr_Lab.visible = true; // Mostra a label "UTC 0" fixa
+                lbl_Fuso.visible = true;
+                
+                sliderBox.classList.add('active');
+                slider.dispatchEvent(new Event('input')); 
+            }
+        }
+
+        // --- RENDER LOOP ---
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+
+            activeLabels.forEach(label => {
+                if (label.visible) {
+                    const pos = new THREE.Vector3().copy(label.offset);
+                    pos.project(camera);
+                    
+                    const x = (pos.x * 0.5 + 0.5) * window.innerWidth;
+                    const y = -(pos.y * 0.5 - 0.5) * window.innerHeight;
+                    
+                    label.element.style.left = `${x}px`;
+                    label.element.style.top = `${y}px`;
+                    
+                    label.element.style.display = pos.z > 1 ? 'none' : 'block';
+                } else {
+                    label.element.style.display = 'none';
+                }
+            });
+
+            const rotSpeed = 0.002;
+            if(!document.getElementById('slider-box').classList.contains('active')) {
+                groupGlobo.rotation.y += rotSpeed;
+                groupEquador.rotation.y += rotSpeed;
+                groupMeridiano.rotation.y += rotSpeed;
+                groupTodosFusos.rotation.y += rotSpeed;
+                
+                if(lbl_Eq.visible) {
+                    const eqAng = groupEquador.rotation.y;
+                    lbl_Eq.offset.set(Math.cos(-eqAng)*(R+2), 0, Math.sin(-eqAng)*(R+2));
+                }
+                if(lbl_Gr.visible && groupMeridiano.visible) {
+                    const grAng = groupMeridiano.rotation.y;
+                    lbl_Gr.offset.set(Math.sin(grAng)*(R+2), 0, Math.cos(grAng)*(R+2));
+                }
+            } else {
+                groupGlobo.rotation.y = 0;
+                groupMeridiano.rotation.y = 0;
+                lbl_Gr.offset.set(0, 0, R + 2);
+                lbl_Gr_Lab.offset.set(0, 0, R + 1.5); // Fica sempre apontando pro centro da linha verde
+            }
+
+            const time = Date.now() * 0.0025;
+            const respiroOffset = Math.max(0, Math.sin(time)) * 0.8;
+
+            if(groupEquador.visible) {
+                groupEquador.children[1].position.y = respiroOffset; 
+                groupEquador.children[2].position.y = -respiroOffset; 
+            } else {
+                groupEquador.children[1].position.y = 0;
+                groupEquador.children[2].position.y = 0;
+            }
+
+            if(groupMeridiano.visible) {
+                groupMeridiano.children[1].position.x = -respiroOffset; 
+                groupMeridiano.children[2].position.x = respiroOffset;  
+            } else {
+                groupMeridiano.children[1].position.x = 0;
+                groupMeridiano.children[2].position.x = 0;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Inicializa
+        setStep(1);
+        animate();
+    </script>
+
+<!-- MATMOV Navigation -->
+<style>
+  #matmov-nav {
+    position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+    display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
+  }
+  #matmov-nav-menu {
+    display: none; flex-direction: column; gap: 6px;
+    background: rgba(11, 25, 44, 0.97); border: 1px solid rgba(0,255,136,0.35);
+    border-radius: 14px; padding: 14px 16px; min-width: 260px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+  }
+  #matmov-nav-menu.open { display: flex; }
+  #matmov-nav-menu a {
+    color: #94a3b8; text-decoration: none; font-family: 'Segoe UI', sans-serif;
+    font-size: 0.82rem; letter-spacing: 0.5px; padding: 6px 10px; border-radius: 8px;
+    transition: background 0.15s, color 0.15s;
+  }
+  #matmov-nav-menu a:hover { background: rgba(0,255,136,0.1); color: #00ff88; }
+  #matmov-nav-menu a.matmov-current { color: #00ff88; font-weight: 700; background: rgba(0,255,136,0.08); }
+  #matmov-nav-menu .matmov-home {
+    color: #00bfff; border-bottom: 1px solid rgba(255,255,255,0.08);
+    margin-bottom: 4px; padding-bottom: 10px;
+  }
+  #matmov-nav-menu .matmov-home:hover { background: rgba(0,191,255,0.1); color: #00bfff; }
+  #matmov-nav-toggle {
+    background: rgba(11, 25, 44, 0.95); border: 1px solid rgba(0,255,136,0.5);
+    color: #00ff88; font-size: 1rem; font-family: 'Segoe UI', sans-serif;
+    padding: 9px 16px; border-radius: 30px; cursor: pointer; letter-spacing: 1px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5); transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  #matmov-nav-toggle:hover { border-color: #00ff88; box-shadow: 0 0 12px rgba(0,255,136,0.3); }
+</style>
+<div id="matmov-nav">
+  <div id="matmov-nav-menu">
+    <a class="matmov-home" href="../index.html">&#8962; Início — MATMOV</a>
+    <a href="001_esfera.html">Lab 01 &mdash; A Formação da Esfera</a>
+    <a href="002_area_volume.html">Lab 02 &mdash; Área e Volume da Esfera</a>
+    <a href="003_elementos_esfera_seccao.html">Lab 03 &mdash; Elementos da Esfera</a>
+    <a href="004_fuso_cunha.html">Lab 04 &mdash; Cunha e Fuso Esférico</a>
+    <a href="005_inscricao.html">Lab 05 &mdash; Inscrição e Circunscrição</a>
+    <a href="006_planeta_esfera.html">Lab 06 &mdash; A Terra e os Fusos</a>
+    <a href="007_projecao_planeta.html">Lab 07 &mdash; Projeção de Mercator</a>
+  </div>
+  <button id="matmov-nav-toggle" onclick="(function(){var m=document.getElementById('matmov-nav-menu');m.classList.toggle('open');})()">&#9776; Labs</button>
+</div>
+<script>
+  (function() {
+    var cur = window.location.pathname.split('/').pop().split('?')[0];
+    var links = document.querySelectorAll('#matmov-nav-menu a[href]');
+    links.forEach(function(a) {
+      var href = a.getAttribute('href').split('?')[0];
+      if (href === cur || decodeURIComponent(href) === decodeURIComponent(cur)) {
+        a.classList.add('matmov-current');
+      }
+    });
+  })();
+</script>
+
+</body>
+</html>
