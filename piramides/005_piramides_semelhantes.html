@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laboratório de Secção e Tronco - MATMOV</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #fffaf1; }
+        #canvas-container { width: 100vw; height: 100vh; display: block; }
+
+        /* Painel Lateral Esquerdo - Explicações */
+        #info-panel {
+            position: absolute; top: 20px; left: 20px; width: 340px;
+            background: rgba(255, 255, 255, 0.95); padding: 25px; border-radius: 12px;
+            border: 2px solid #005088; z-index: 10; box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            display: flex; flex-direction: column; gap: 15px;
+        }
+        #info-panel h2 { margin: 0; color: #005088; font-size: 1.4rem; text-transform: uppercase; border-bottom: 2px solid #d4af37; padding-bottom: 10px; }
+        #info-text { font-size: 1.05rem; color: #333; line-height: 1.5; }
+        
+        .math-box {
+            background: #fdfaf2; border: 1px dashed #d4af37; padding: 15px;
+            border-radius: 8px; color: #005088; font-weight: bold; font-size: 1.1rem;
+            display: none; flex-direction: column; gap: 10px; text-align: center;
+        }
+        .math-box span { display: block; }
+
+        /* Painel de Navegação (Passo a Passo) */
+        #nav-panel {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.95); padding: 15px 25px; border-radius: 50px;
+            border: 2px solid #d4af37; z-index: 10; box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+            display: flex; gap: 10px; align-items: center;
+        }
+
+        button.step-btn {
+            background: #f8f9fa; border: 2px solid #bdc3c7; padding: 12px 20px; font-size: 1rem;
+            border-radius: 30px; cursor: pointer; font-weight: bold; color: #2c3e50; transition: all 0.3s;
+        }
+        button.step-btn:hover { background: #e2e8f0; }
+        button.step-btn.active { background: #d4af37; color: white; border-color: #b8860b; box-shadow: 0 4px 15px rgba(212, 175, 55, 0.4); }
+
+        .instrucao {
+            position: absolute; top: 20px; right: 20px; background: rgba(255,255,255,0.8);
+            padding: 10px 15px; border-radius: 8px; font-size: 0.9rem; color: #555;
+            border: 1px solid #d4af37; pointer-events: none; z-index: 10;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="info-panel">
+        <h2 id="step-title">1. A Pirâmide Original</h2>
+        <div id="info-text">Temos aqui uma pirâmide quadrangular regular. Toda a sua estrutura (volume e área) será a nossa base de referência.</div>
+        
+        <div id="math-semelhanca" class="math-box">
+            <span>Razão de Semelhança (k):</span>
+            <span>k = h<sub>menor</sub> / H<sub>maior</sub></span>
+            <span>V<sub>menor</sub> / V<sub>maior</sub> = k³</span>
+        </div>
+
+        <div id="math-tronco" class="math-box">
+            <span>Cálculo do Tronco:</span>
+            <span>V<sub>tronco</sub> = V<sub>maior</sub> - V<sub>menor</sub></span>
+            <span>A<sub>tronco</sub> = A<sub>maior</sub> - A<sub>menor(lateral)</sub></span>
+        </div>
+    </div>
+
+    <div class="instrucao">🖱️ Gire o cenário com o mouse</div>
+
+    <div id="canvas-container"></div>
+
+    <div id="nav-panel">
+        <button class="step-btn active" id="btn-1" onclick="setStep(1)">1. Original</button>
+        <button class="step-btn" id="btn-2" onclick="setStep(2)">2. O Corte</button>
+        <button class="step-btn" id="btn-3" onclick="setStep(3)">3. Semelhança</button>
+        <button class="step-btn" id="btn-4" onclick="setStep(4)">4. O Tronco</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script>
+        // CONFIGURAÇÃO THREE.JS
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xfffaf1);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(15, 12, 18);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.target.set(0, 4, 0);
+
+        // LUZES E CHÃO
+        scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+        const sun = new THREE.DirectionalLight(0xffeaa7, 0.8);
+        sun.position.set(10, 20, 10);
+        scene.add(sun);
+        scene.add(new THREE.GridHelper(20, 20, 0xd4af37, 0xe2e8f0));
+
+        // VARIÁVEIS GLOBAIS DE ANIMAÇÃO E OBJETOS
+        let currentStep = 1;
+        let smallPyramidTargetY = 6; // Posição Y inicial da pirâmide pequena (encaixada)
+        
+        // MATERIAIS
+        const matGold = new THREE.MeshPhongMaterial({ color: 0xd4af37, transparent: true, opacity: 0.85, side: THREE.DoubleSide });
+        const matBlue = new THREE.MeshPhongMaterial({ color: 0x005088, transparent: true, opacity: 0.85, side: THREE.DoubleSide });
+        const matWireframe = new THREE.LineBasicMaterial({ color: 0x2c3e50, linewidth: 2 });
+        const matPlane = new THREE.MeshBasicMaterial({ color: 0xe84118, transparent: true, opacity: 0.4, side: THREE.DoubleSide });
+
+        // DIMENSÕES (Usando CylinderGeometry com 4 lados para criar pirâmides perfeitas)
+        const R = 5;       // Raio da base maior
+        const r = 2.5;     // Raio da base menor (corte na metade exata)
+        const H_total = 8; // Altura total
+        const h_cut = 4;   // Altura do tronco
+        const h_small = 4; // Altura da pirâmide pequena
+
+        // 1. O TRONCO DA PIRÂMIDE (Parte de baixo)
+        const frustumGeo = new THREE.CylinderGeometry(r, R, h_cut, 4);
+        frustumGeo.rotateY(Math.PI / 4); // Alinha com os eixos X e Z
+        const frustumMesh = new THREE.Mesh(frustumGeo, matGold);
+        frustumMesh.position.y = h_cut / 2; // Centro do tronco
+        
+        const frustumEdges = new THREE.LineSegments(new THREE.EdgesGeometry(frustumGeo), matWireframe);
+        frustumMesh.add(frustumEdges);
+        scene.add(frustumMesh);
+
+        // 2. A PIRÂMIDE MENOR (Parte de cima)
+        const smallPyramidGeo = new THREE.CylinderGeometry(0, r, h_small, 4);
+        smallPyramidGeo.rotateY(Math.PI / 4);
+        const smallPyramidMesh = new THREE.Mesh(smallPyramidGeo, matBlue);
+        // A posição Y real da pirâmide menor quando encaixada é (h_cut + h_small/2) = 4 + 2 = 6
+        smallPyramidMesh.position.y = 6; 
+        
+        const smallPyramidEdges = new THREE.LineSegments(new THREE.EdgesGeometry(smallPyramidGeo), matWireframe);
+        smallPyramidMesh.add(smallPyramidEdges);
+        scene.add(smallPyramidMesh);
+
+        // 3. O PLANO DE CORTE
+        const planeGeo = new THREE.PlaneGeometry(14, 14);
+        const planeMesh = new THREE.Mesh(planeGeo, matPlane);
+        planeMesh.rotation.x = -Math.PI / 2;
+        planeMesh.position.y = h_cut; // Fica exatamente na altura do corte
+        scene.add(planeMesh);
+
+        // FUNÇÃO DE CONTROLE DOS PASSOS
+        function setStep(step) {
+            currentStep = step;
+            
+            // UI - Botões
+            document.querySelectorAll('.step-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('btn-' + step).classList.add('active');
+
+            // UI - Textos
+            const title = document.getElementById('step-title');
+            const text = document.getElementById('info-text');
+            const boxSemelhanca = document.getElementById('math-semelhanca');
+            const boxTronco = document.getElementById('math-tronco');
+
+            boxSemelhanca.style.display = 'none';
+            boxTronco.style.display = 'none';
+
+            // LÓGICA DE EXIBIÇÃO 3D
+            if (step === 1) {
+                title.innerText = "1. A Pirâmide Original";
+                text.innerHTML = "Temos aqui a estrutura completa.<br><br>Repare que a pirâmide dourada (embaixo) e a azul (em cima) formam um sólido contínuo.";
+                
+                planeMesh.visible = false;
+                smallPyramidMesh.visible = true;
+                frustumMesh.visible = true;
+                
+                // Volta as cores para a mesma (simulando um sólido único)
+                frustumMesh.material = matGold;
+                smallPyramidMesh.material = matGold;
+                
+                smallPyramidTargetY = 6; // Encaixada perfeitamente
+            } 
+            else if (step === 2) {
+                title.innerText = "2. O Corte Transversal";
+                text.innerHTML = "Um plano paralelo à base intercepta a pirâmide a uma certa altura.<br><br>Esse plano vermelho divide o nosso sólido em duas partes distintas.";
+                
+                planeMesh.visible = true;
+                smallPyramidMesh.visible = true;
+                frustumMesh.visible = true;
+                
+                frustumMesh.material = matGold;
+                smallPyramidMesh.material = matBlue; // Destaca a parte superior
+                
+                smallPyramidTargetY = 6; // Ainda encaixada
+            }
+            else if (step === 3) {
+                title.innerText = "3. Pirâmides Semelhantes";
+                text.innerHTML = "A parte de cima (azul) é uma <b>pirâmide exata</b>, semelhante à pirâmide original inteira!<br><br>Elas compartilham os mesmos ângulos, apenas em escalas diferentes.";
+                
+                planeMesh.visible = false;
+                smallPyramidMesh.visible = true;
+                frustumMesh.visible = true;
+                
+                // Deixa o tronco translúcido para focar na pirâmide menor
+                frustumMesh.material = new THREE.MeshPhongMaterial({ color: 0xd4af37, transparent: true, opacity: 0.2, side: THREE.DoubleSide });
+                smallPyramidMesh.material = matBlue;
+                
+                boxSemelhanca.style.display = 'flex';
+                
+                smallPyramidTargetY = 9; // Levanta a pirâmide menor (Animação)
+            }
+            else if (step === 4) {
+                title.innerText = "4. O Tronco da Pirâmide";
+                text.innerHTML = "Se retirarmos a pirâmide menor (azul), o que sobra é o <b>Tronco</b> (dourado).<br><br>Portanto, todas as fórmulas do tronco nascem de uma simples subtração matemática!";
+                
+                planeMesh.visible = false;
+                smallPyramidMesh.visible = false; // Esconde a pirâmide menor
+                frustumMesh.visible = true;
+                
+                frustumMesh.material = matGold; // Volta o tronco a ficar sólido
+                
+                boxTronco.style.display = 'flex';
+                
+                smallPyramidTargetY = 6; // Reseta posição em background
+            }
+        }
+
+        // LOOP DE ANIMAÇÃO
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+
+            // Interpolação suave (Tween) para o movimento de flutuação da pirâmide menor no Passo 3
+            smallPyramidMesh.position.y += (smallPyramidTargetY - smallPyramidMesh.position.y) * 0.08;
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // INICIA NO PASSO 1
+        setStep(1);
+        animate();
+    </script>
+</body>
+</html>

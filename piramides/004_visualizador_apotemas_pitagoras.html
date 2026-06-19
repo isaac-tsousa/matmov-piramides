@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laboratório de Apótemas - MATMOV</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; background-color: #fffaf1; }
+        #canvas-container { width: 100vw; height: 100vh; display: block; }
+
+        /* Painel Superior de Título */
+        #top-panel {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.95); padding: 12px 25px; border-radius: 30px;
+            border: 2px solid #d4af37; z-index: 20; box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            text-align: center; font-weight: bold; color: #005088; font-size: 1.1rem;
+        }
+
+        /* Painel Lateral de Informações Geométricas */
+        #info-panel {
+            position: absolute; top: 90px; left: 20px; width: 320px;
+            background: rgba(255, 255, 255, 0.95); padding: 20px; border-radius: 12px;
+            border: 2px solid #d4af37; z-index: 10; box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        #info-panel h3 { margin: 0 0 10px 0; color: #005088; text-transform: uppercase; font-size: 1.1rem; }
+        #info-content { font-size: 0.95rem; color: #333; line-height: 1.5; }
+        
+        .formula-box {
+            margin-top: 15px; padding: 10px; background: #fdfaf2; 
+            border: 1px dashed #d4af37; border-radius: 6px; font-weight: bold;
+            text-align: center; color: #005088; font-size: 1.1rem;
+        }
+
+        /* Painel de Controle Inferior (Duas fileiras: Polígono e Elemento) */
+        #controls-panel {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.95); padding: 20px 30px; border-radius: 15px;
+            border: 2px solid #d4af37; z-index: 10; min-width: 700px; box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+            display: flex; flex-direction: column; gap: 15px; align-items: center;
+        }
+        
+        .control-row { display: flex; gap: 10px; justify-content: center; width: 100%; align-items: center; }
+        .row-label { font-weight: bold; color: #555; min-width: 140px; text-align: right; font-size: 0.95rem; }
+
+        button.ctrl-btn {
+            background: #f8f9fa; border: 1px solid #bdc3c7; padding: 10px 16px; font-size: 0.95rem;
+            border-radius: 8px; cursor: pointer; font-weight: bold; color: #2c3e50; transition: all 0.2s;
+        }
+        button.ctrl-btn:hover { background: #eee; transform: translateY(-1px); }
+        button.ctrl-btn.active { background: #005088; color: white; border-color: #003d66; }
+        
+        /* Cores temáticas para os botões de métricas */
+        button#btn-h.active { background: #2980b9; border-color: #2471a3; }
+        button#btn-n.active { background: #27ae60; border-color: #1e8449; }
+        button#btn-m.active { background: #d35400; border-color: #ba4a00; }
+        button#btn-all.active { background: #9b59b6; border-color: #8e44ad; }
+
+        /* Labels flutuantes dos vértices */
+        .vertex-label {
+            position: absolute; color: #005088; font-weight: 900; font-size: 1.1rem;
+            text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff;
+            pointer-events: none; z-index: 5;
+        }
+
+        .instrucao {
+            position: absolute; top: 20px; right: 20px; background: rgba(255,255,255,0.8);
+            padding: 10px 15px; border-radius: 8px; font-size: 0.85rem; color: #555;
+            border: 1px solid #d4af37; pointer-events: none; z-index: 10;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="top-panel">
+        📐 Laboratório de Relações Métricas e Apótemas
+    </div>
+
+    <div id="info-panel">
+        <h3 id="info-title">Selecione uma Métrica</h3>
+        <div id="info-content">Use os controles inferiores para isolar a Altura, o Apótema da Base ou o Apótema da Pirâmide.</div>
+        <div id="formula-area" class="formula-box" style="display:none;"></div>
+    </div>
+
+    <div class="instrucao">🖱️ Clique e arraste para rotacionar a cena</div>
+
+    <div id="labels-container"></div>
+    <div id="canvas-container"></div>
+
+    <div id="controls-panel">
+        <!-- Linha 1: Seleção da Base -->
+        <div class="control-row">
+            <div class="row-label">Polígono da Base:</div>
+            <button class="ctrl-btn" id="poly-3" onclick="setSides(3)">Triangular (3)</button>
+            <button class="ctrl-btn active" id="poly-4" onclick="setSides(4)">Quadrangular (4)</button>
+            <button class="ctrl-btn" id="poly-5" onclick="setSides(5)">Pentagonal (5)</button>
+            <button class="ctrl-btn" id="poly-6" onclick="setSides(6)">Hexagonal (6)</button>
+        </div>
+        
+        <!-- Linha 2: Visualização dos Elementos -->
+        <div class="control-row">
+            <div class="row-label">Visualizar Elemento:</div>
+            <button class="ctrl-btn active" id="btn-none" onclick="setViewMode('none')">Apenas Pirâmide</button>
+            <button class="ctrl-btn" id="btn-h" onclick="setViewMode('h')">Altura (h)</button>
+            <button class="ctrl-btn" id="btn-n" onclick="setViewMode('n')">Apótema da Base (n)</button>
+            <button class="ctrl-btn" id="btn-m" onclick="setViewMode('m')">Apótema da Pirâmide (m)</button>
+            <button class="ctrl-btn" id="btn-all" onclick="setViewMode('all')">Triângulo Retângulo (Todos)</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script>
+        // CONFIGURAÇÕES E ESTADO GLOBAL
+        let sides = 4;
+        let viewMode = 'none'; // 'none', 'h', 'n', 'm', 'all'
+        let labels = [];
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xfffaf1); // Fundo Areia do Egito
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(11, 9, 14);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.target.set(0, 2.5, 0);
+
+        // ILUMINAÇÃO SOLAR
+        scene.add(new THREE.AmbientLight(0xffffff, 0.65));
+        const sun = new THREE.DirectionalLight(0xffeaa7, 0.9);
+        sun.position.set(10, 25, 8);
+        scene.add(sun);
+
+        scene.add(new THREE.GridHelper(24, 24, 0xd4af37, 0xe2e8f0));
+
+        // GRUPOS DINÂMICOS
+        let pyramidGroup = new THREE.Group();
+        scene.add(pyramidGroup);
+
+        function clearLabels() {
+            labels.forEach(l => l.element.remove());
+            labels = [];
+        }
+
+        function createLabel(text, pos) {
+            const div = document.createElement('div');
+            div.className = 'vertex-label';
+            div.innerText = text;
+            document.getElementById('labels-container').appendChild(div);
+            labels.push({ element: div, pos: pos });
+        }
+
+        // CONSTRUTOR DE TUBOS REFORÇADOS (ARESTAS VISÍVEIS)
+        function createThickLine(p1, p2, color, thickness = 0.06, opacity = 1) {
+            const dist = p1.distanceTo(p2);
+            const geo = new THREE.CylinderGeometry(thickness, thickness, dist, 8);
+            const mat = new THREE.MeshBasicMaterial({ color: color, transparent: opacity < 1, opacity: opacity });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.copy(p1.clone().add(p2).multiplyScalar(0.5));
+            mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), p2.clone().sub(p1).normalize());
+            return mesh;
+        }
+
+        // MOTOR DE CONSTRUÇÃO GEOMÉTRICA
+        function buildScene() {
+            // Limpa geometria anterior
+            while(pyramidGroup.children.length > 0) pyramidGroup.remove(pyramidGroup.children[0]);
+            clearLabels();
+
+            const radius = 5;
+            const hVal = 7;
+            const basePoints = [];
+
+            // 1. Vértices da Base Regular
+            for (let i = 0; i < sides; i++) {
+                const angle = (i / sides) * Math.PI * 2;
+                const p = new THREE.Vector3(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
+                basePoints.push(p);
+                createLabel(String.fromCharCode(65 + i), p.clone().add(new THREE.Vector3(0, -0.4, 0)));
+            }
+
+            // 2. Vértice do Ápice V
+            const vV = new THREE.Vector3(0, hVal, 0);
+            createLabel('V', vV.clone().add(new THREE.Vector3(0, 0.4, 0)));
+
+            // 3. Estrutura Padrão da Pirâmide (Mais suave para destacar os apótemas)
+            const edgeColor = 0x7f8c8d;
+            const faceMat = new THREE.MeshPhongMaterial({ color: 0xd4af37, transparent: true, opacity: 0.15, side: THREE.DoubleSide });
+
+            for (let i = 0; i < sides; i++) {
+                const next = (i + 1) % sides;
+                // Arestas estruturais normais
+                pyramidGroup.add(createThickLine(basePoints[i], basePoints[next], edgeColor, 0.04, 0.4));
+                pyramidGroup.add(createThickLine(basePoints[i], vV, edgeColor, 0.04, 0.4));
+
+                // Superfícies das faces laterais
+                const fGeo = new THREE.BufferGeometry();
+                fGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
+                    basePoints[i].x, basePoints[i].y, basePoints[i].z,
+                    basePoints[next].x, basePoints[next].y, basePoints[next].z,
+                    vV.x, vV.y, vV.z
+                ]), 3));
+                fGeo.computeVertexNormals();
+                pyramidGroup.add(new THREE.Mesh(fGeo, faceMat));
+            }
+
+            // 4. CÁLCULO DOS APÓTEMAS (Baseado na primeira face: Aresta entre ponto 0 e 1)
+            const pA = basePoints[0];
+            const pB = basePoints[1];
+            
+            // Ponto Médio da Aresta da Base (M)
+            const pM = new THREE.Vector3().addVectors(pA, pB).multiplyScalar(0.5);
+            createLabel('M', pM.clone().add(new THREE.Vector3(0, -0.3, 0.3)));
+
+            // Centro da Base (O)
+            const pO = new THREE.Vector3(0, 0, 0);
+            createLabel('O', pO.clone().add(new THREE.Vector3(-0.3, -0.3, -0.2)));
+
+            // CORES DAS MÉTRICAS REFORÇADAS
+            const colorH = 0x2980b9;  // Azul
+            const colorN = 0x27ae60;  // Verde
+            const colorM = 0xd35400;  // Laranja / Abóbora
+            const colorTriangle = 0x9b59b6; // Roxo Translúcido
+
+            // 5. ATIVAÇÃO VISUAL CONFORME O MODO SELECIONADO
+            if (viewMode === 'h' || viewMode === 'all') {
+                // Altura: de O até V
+                pyramidGroup.add(createThickLine(pO, vV, colorH, 0.12));
+            }
+            if (viewMode === 'n' || viewMode === 'all') {
+                // Apótema da Base: de O até M
+                pyramidGroup.add(createThickLine(pO, pM, colorN, 0.12));
+            }
+            if (viewMode === 'm' || viewMode === 'all') {
+                // Apótema da Pirâmide: de V até M
+                pyramidGroup.add(createThickLine(vV, pM, colorM, 0.12));
+            }
+
+            // Se for o modo completo, preenche o triângulo retângulo interno com uma face roxa translúcida
+            if (viewMode === 'all') {
+                const triGeo = new THREE.BufferGeometry();
+                triGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
+                    pO.x, pO.y, pO.z,
+                    pM.x, pM.y, pM.z,
+                    vV.x, vV.y, vV.z
+                ]), 3));
+                triGeo.computeVertexNormals();
+                const triMat = new THREE.MeshBasicMaterial({ color: colorTriangle, transparent: true, opacity: 0.4, side: THREE.DoubleSide });
+                pyramidGroup.add(new THREE.Mesh(triGeo, triMat));
+
+                // Pequeno marcador de ângulo reto em O (Indicativo pedagógico)
+                const squareSize = 0.4;
+                const rightAngleGeo = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(pM.x * (squareSize/radius), 0, pM.z * (squareSize/radius)),
+                    new THREE.Vector3(pM.x * (squareSize/radius), squareSize, pM.z * (squareSize/radius)),
+                    new THREE.Vector3(0, squareSize, 0)
+                ]);
+                const rightAngleLine = new THREE.Line(rightAngleGeo, new THREE.LineBasicMaterial({color: 0x000000, linewidth: 2}));
+                pyramidGroup.add(rightAngleLine);
+            }
+        }
+
+        // CONTROLADORES E TEXTOS DE INTERFACE (I18N PORTUGUÊS)
+        function setSides(s) {
+            sides = s;
+            document.querySelectorAll('.control-row:first-child button').forEach(b => b.classList.remove('active'));
+            document.getElementById('poly-' + s).classList.add('active');
+            buildScene();
+        }
+
+        function setViewMode(mode) {
+            viewMode = mode;
+            document.querySelectorAll('.control-row:last-child button').forEach(b => b.classList.remove('active'));
+            
+            let btnId = 'btn-none';
+            if(mode !== 'none') btnId = 'btn-' + mode;
+            document.getElementById(btnId).classList.add('active');
+
+            const title = document.getElementById('info-title');
+            const content = document.getElementById('info-content');
+            const formula = document.getElementById('formula-area');
+
+            formula.style.display = "block";
+
+            if (mode === 'none') {
+                title.innerText = "Apenas Pirâmide";
+                content.innerText = "Observe a estrutura externa tridimensional limpa. Escolha uma métrica para analisar seu interior.";
+                formula.style.display = "none";
+            }
+            else if (mode === 'h') {
+                title.innerText = "Altura da Pirâmide (h)";
+                content.innerText = "É o segmento azul vertical (VO) que conecta perpendicularmente o ápice V ao centro O da base poligonal.";
+                formula.innerText = "Segmento: VO";
+            }
+            else if (mode === 'n') {
+                title.innerText = "Apótema da Base (n)";
+                content.innerText = "É o segmento verde (OM) que parte do centro O da base até o ponto médio M de uma das arestas da base.";
+                formula.innerText = "Segmento: OM";
+            }
+            else if (mode === 'm') {
+                title.innerText = "Apótema da Pirâmide (m)";
+                content.innerText = "É o segmento laranja (VM) que representa a altura da face lateral triangular, ligando o vértice V ao ponto médio M.";
+                formula.innerText = "Segmento: VM";
+            }
+            else if (mode === 'all') {
+                title.innerText = "Teorema de Pitágoras";
+                content.innerText = "Ligando os 3 elementos, descobrimos um Triângulo Retângulo interno perfeito (VOM) com ângulo reto em O. A hipotenusa é o apótema da pirâmide (m).";
+                formula.innerHTML = "m² = h² + n²";
+            }
+
+            buildScene();
+        }
+
+        // LOOP DE FRAME (RENDERIZADOR)
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+
+            // Amarração bidimensional das tags de texto HTML aos pontos tridimensionais
+            labels.forEach(label => {
+                const vector = label.pos.clone();
+                vector.project(camera);
+                const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+                const y = -(vector.y * 0.5 - 0.5) * window.innerHeight;
+                label.element.style.left = `${x}px`;
+                label.element.style.top = `${y}px`;
+                label.element.style.display = (vector.z > 1) ? 'none' : 'block';
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // INICIALIZAÇÃO DO MOTOR
+        buildScene();
+        animate();
+    </script>
+</body>
+</html>
